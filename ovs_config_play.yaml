@@ -1,0 +1,8 @@
+
+---
+- hosts: all
+  remote_user: ubuntu
+  tasks:
+    - name: configure ovs on remote host
+      become: true 
+      script : ./config_ovs.sh 
