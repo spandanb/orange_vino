@@ -2,10 +2,12 @@ from auth import Auth
 import requests
 import pdb
 import json
-from utils import is_prefix, is_uuid
+from utils import is_prefix, is_uuid, SleepFSM
 import consts
 import os
 import pprint
+import paramiko
+from socket import error as socket_error
 
 #TODO:remove all region_name in each method
 #instead when changing region call `change_params`
@@ -175,7 +177,8 @@ class ServerManager(object):
 
 
     def create_server(self, name, image, flavor, region_name=None,
-            key_name=None, secgroups=[], secgroup_rules=[]):
+            key_name=None, secgroups=[], secgroup_rules=[],
+            user_data=None):
         """
         Create a single server
         Either flavor or flavor_id should be specified
@@ -194,12 +197,15 @@ class ServerManager(object):
         flavor_ref = self._flavor_ref(flavor, region_name=region_name)
 
         key_name = key_name or ""
+        user_data = user_data or ""
+
         data = {
             "server": {
                 "name": name,
                 "imageRef": image_ref,
                 "flavorRef": flavor_ref,
                 "key_name": key_name,
+                "user_data": user_data
             }
         }
 
@@ -250,6 +256,19 @@ class ServerManager(object):
                     print "deleting {}, {}".format(server["id"], server["name"])
                     self._call_api(service="nova", api="/servers/"+server["id"],  verb="delete")
 
+    def get_keypairs(self):
+        """
+        Get information on all keypairs
+        """
+        return self._call_api(service="nova", api="/os-keypairs").json()["keypairs"]
+
+    def remove_keypair(self, key_name):
+        """
+        deletes specified keypair
+        """
+        api = "/os-keypairs/{}".format(key_name)
+        return self._call_api(service="nova", api=api, verb="delete")
+
     def create_keypair(self, key_name, public_key):
         """
         Creates a key pair if it doesn't exist
@@ -259,11 +278,60 @@ class ServerManager(object):
             public_key: the string representing the public_key
         """
         keys = self._call_api(service="nova", api="/os-keypairs").json()["keypairs"]
-        exists = next( (key for key in keys if key["name"] == key_name), False)
+        exists = next( (key for key in keys if key["keypair"]["name"] == key_name), False)
         if not exists:
-            data = {"public_key" : public_key}
+            data = {"keypair": {"name": key_name, "public_key" : public_key}}
             new_key = self._call_api(service="nova", api="/os-keypairs", verb="post", data=data).json()
 
+
+
+    def wait_until_built(self, server_id):
+        """
+        Loops until server is not in BUILD state
+        Returns it IP address
+        """
+        sleep = SleepFSM()
+        sleep.init()
+        while True:
+            server = self.get_server(server_id = server_id, parse=False)
+            if server['status'] != 'BUILD':
+                #Check for errors
+                if server['status'] != 'ACTIVE':
+                    #quit, something wonky-happend
+                    print "ERROR: Status of {} is {}".format(server_id, server['status'])
+                    sys.exit(1)
+
+                server_net, server_nics = server['addresses'].popitem()
+                return server_nics[0]['addr']
+                #server_net
+                #node['name'] = server['name'] #instance name
+
+            else:
+                sleep()
+
+    def wait_until_sshable(self, server_id, username=''):
+        """
+        Waits until server is SSH'able
+        Returns IP address
+        """
+        username = username or 'ubuntu'
+        ipaddr = self.wait_until_built(server_id)
+
+        sshClient = paramiko.SSHClient()
+        sshClient.set_missing_host_key_policy(paramiko.AutoAddPolicy())
+        sleep = SleepFSM()
+        sleep.init()
+
+        while True:
+            try:
+                print "Trying ssh {}@{}".format(username, ipaddr)
+                sshClient.connect(ipaddr, username=username)
+                break
+            except socket_error:
+                print "SSH failed...."
+                sleep()
+
+        return ipaddr
 
 if __name__ == "__main__":
     server_manager = ServerManager(os.environ["OS_USERNAME"],
@@ -281,9 +349,6 @@ if __name__ == "__main__":
 
     #List keypairs
     #pprint.pprint(server_manager._call_api(service="nova", api="/os-keypairs").json())
-
-    #List secgroups
-    pprint.pprint(server_manager._call_api(service="nova", api="/os-security-groups").json())
 
     #Create a server
     #server_manager.create_server(self, name, image, flavor, key_name='', secgroups=['default'])

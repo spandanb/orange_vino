@@ -1,8 +1,8 @@
 from ansible.playbook import PlayBook
-import ansible.playbook 
-import ansible.inventory 
+import ansible.playbook
+import ansible.inventory
 from ansible import callbacks
-from ansible import utils 
+from ansible import utils
 import json
 import random
 import string
@@ -10,19 +10,19 @@ import os
 
 def create_playbook(text):
     """
-    Create a playbook file out a 
-    text. Return the path to the 
+    Dynamically creates a playbook file out of
+    text. Returns the path to the
     playbook file
     """
     def playbook_name():
         """
-        Generates a name for playbook consisting of 
+        Generates a name for playbook consisting of
         the format playbook_X.yaml, where X is string of
         random ascii letters of length 5
         """
         rand_id = ''.join(random.choice(string.ascii_letters) for _ in range(5))
         return 'playbook_{}.yaml'.format(rand_id)
-        
+
     playbook_path = "{}/{}".format(os.getcwd(), playbook_name())
     with open(playbook_path, 'w') as out_file:
         out_file.write(text)
@@ -30,6 +30,10 @@ def create_playbook(text):
     return playbook_path
 
 def create_inventory(text):
+    """
+    Dynamically creates an inventory file from
+    the constiuent text
+    """
     inventory_path = "{}/hosts".format(os.getcwd())
     with open(inventory_path, 'w') as out_file:
         out_file.write(text)
@@ -46,6 +50,10 @@ def remove_playbook(path):
     remove_file(path)
 
 def create_and_play(playbook_text, hosts):
+    """
+    Utility method that creates and runs
+    a playbook
+    """
     playbook_file = create_playbook(playbook_text)
     results = playbook(playbook_file, hosts)
     remove_file(playbook_file)
@@ -62,11 +70,11 @@ def playbook(playbook, hosts):
 
     #create these objects- required by playbook
     stats = callbacks.AggregateStats()
-    playbook_cb = callbacks.PlaybookCallbacks(verbose=utils.VERBOSITY) 
-    runner_cb = callbacks.PlaybookRunnerCallbacks(stats, verbose=utils.VERBOSITY) 
-    
-    pb = PlayBook(playbook=playbook, 
-                    inventory=inventory, 
+    playbook_cb = callbacks.PlaybookCallbacks(verbose=utils.VERBOSITY)
+    runner_cb = callbacks.PlaybookRunnerCallbacks(stats, verbose=utils.VERBOSITY)
+
+    pb = PlayBook(playbook=playbook,
+                    inventory=inventory,
                     stats = stats,
                     callbacks = playbook_cb,
                     runner_callbacks = runner_cb,
