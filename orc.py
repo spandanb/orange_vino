@@ -6,38 +6,9 @@ import time
 import sys
 import paramiko
 from socket import error as socket_error
-import utils as ut
+from utils import extract_ip, SleepFSM
 #NOTE: Currently only single region deployment/ deletion 
 #is supported; 
-
-class SleepFSM(object):
-    """
-    Makes current process sleep starting with 
-    time =  `sleep_time` and doubles every time
-    sleep is called until `max_tries`, whence
-    a Error is raised
-    """
-
-    def init(self, max_tries=5, sleep_time=20):
-        """(re)starts the FSM
-        """
-        self.max_tries = max_tries
-        self.sleep_time = sleep_time
-        self.current_try = 0
-
-    def sleep(self):
-        if self.current_try == self.max_tries:
-            raise RuntimeError('Maximum tries exceeded')
-
-        time.sleep(self.sleep_time)
-        #Increment try counter
-        self.current_try += 1 
-        #Double sleep time
-        self.sleep_time = self.sleep_time * 2
-        
-    def __call__(self):
-        self.sleep()
-
 
 class Orc(object):
     """
@@ -224,7 +195,7 @@ class Orc(object):
         the topology and node IPs to the controller
         """
         import sdn_controller
-        contr_path = "ubuntu@{}:/home/ubuntu".format(ut.extract_ip(config.contr_addr))
+        contr_path = "ubuntu@{}:/home/ubuntu".format(extract_ip(config.contr_addr))
         rules = sdn_controller.get_rules_from_topology(self.virt_topology, self.nodes)
         sdn_controller.config_controller(contr_path, rules) 
 
