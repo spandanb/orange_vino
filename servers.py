@@ -92,8 +92,8 @@ class ServerManager(object):
            resp = self._call_api(api_url=api_url, verb=verb, data=data)
 
         if resp.status_code > 204:
-            raise ValueError("Error: {}: {}\nRequest url was {}".format(resp.status_code,
-                resp.reason, resp.url))
+            raise ValueError("Error: {}: {}\nRequest url was {}\n{}".format(resp.status_code,
+                resp.reason, resp.url, resp.text))
 
         return resp
 
@@ -177,8 +177,8 @@ class ServerManager(object):
 
 
     def create_server(self, name, image, flavor, region_name=None,
-            key_name=None, secgroups=[], secgroup_rules=[],
-            user_data=None):
+            key_name="", secgroups=[], secgroup_rules=[],
+            user_data="", network=""):
         """
         Create a single server
         Either flavor or flavor_id should be specified
@@ -195,9 +195,7 @@ class ServerManager(object):
             image_ref = self._image_ref(image, region_name=region_name)
 
         flavor_ref = self._flavor_ref(flavor, region_name=region_name)
-
-        key_name = key_name or ""
-        user_data = user_data or ""
+        
 
         data = {
             "server": {
@@ -216,6 +214,14 @@ class ServerManager(object):
                 data["server"]["security_groups"].append(
                     {"name":  secgroup}
                 )
+
+        #Add network
+        network_name = "{}-net".format(self.tenant_name)
+        networks = self._call_api(service="nova", api="/os-networks").json()['networks']
+        net_id = next(network['id'] for network in networks if network['label'] == network_name)
+        data["server"]["networks"] = [{"uuid": net_id}]
+
+
 
         resp = self._call_api(service="nova", api="/servers", verb="post", data=data,
             region_name=region_name)
@@ -333,6 +339,21 @@ class ServerManager(object):
 
         return ipaddr
 
+def print_resp(resp):
+    """
+    prints the response object
+    """
+
+    #The print function to use
+    prnt = pprint.pprint
+
+    if hasattr(resp, 'json'):
+        prnt(resp.json())
+    else:
+        prnt(resp)
+        
+
+
 if __name__ == "__main__":
     server_manager = ServerManager(os.environ["OS_USERNAME"],
                                    os.environ["OS_PASSWORD"],
@@ -351,5 +372,9 @@ if __name__ == "__main__":
     #pprint.pprint(server_manager._call_api(service="nova", api="/os-keypairs").json())
 
     #Create a server
-    #server_manager.create_server(self, name, image, flavor, key_name='', secgroups=['default'])
+    #server_manager.create_server(name, image, flavor, key_name='', secgroups=['default'])
+    server_manager.create_server("span-vm-1", "Ubuntu1404-64", "m1.small", key_name='key_spandan', secgroups=['default', 'spandantb'])
+
+    #List networks
+    #print_resp(server_manager._call_api(service="nova", api="/os-networks"))
 

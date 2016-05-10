@@ -3,7 +3,7 @@ import sys
 from orc import Orc
 import config
 import utils as ut
-import ansible_wrapper
+from ansible_wrapper import ansible_wrapper
 import pdb 
 """
 The 
@@ -51,9 +51,9 @@ def setup_host(bridge='br0', int_port='p0', int_ip=None, ip='',
        script.write(script_text) 
 
     #call ansible
-    results = ansible_wrapper.playbook('ovs_config_play.yaml', [ip])
+    results = ansible_wrapper.playbook(playbook='ovs_config_play.yaml', hosts=[ip])
     #print results
-    ansible_wrapper.print_results(results)
+    print results
 
 def setup_ovs_swarm(topology=None, nodes=None, contr_addr="10.12.1.20:6633"):
     """
@@ -105,9 +105,11 @@ def setup_ovs_from_hosts(hosts=[], contr_addr="10.12.1.20"):
         contr_addr: ["X.X.X.X"|None] if None, configures switches
             in stanalone mode
     """
-    for idx in range(len(hosts)):
+    for idx, host in enumerate(hosts):
         host = hosts[idx]
+        #list of the other nodes
         connections = hosts[:idx] + hosts[idx+1:]
+        #list of {remote_ip: X.X.X.X, vni: #}
         connections = map(lambda conn: {'remote_ip': conn, 'vni': 1}, connections)
         setup_host(contr_addr=contr_addr,
                    connections=connections,
@@ -117,4 +119,5 @@ def setup_ovs_from_hosts(hosts=[], contr_addr="10.12.1.20"):
 
 if __name__ == "__main__":
     #setup_ovs_swarm()
-    setup_ovs_from_hosts(hosts=["10.12.0.20", "10.12.0.21"], contr_addr="10.12.1.20:6633")
+    setup_ovs_from_hosts(hosts=["ec2-52-91-65-90.compute-1.amazonaws.com", "10.12.1.40"], 
+        contr_addr="ec2-52-91-65-90.compute-1.amazonaws.com:6633")
