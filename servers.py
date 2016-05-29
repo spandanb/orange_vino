@@ -289,7 +289,27 @@ class ServerManager(object):
             data = {"keypair": {"name": key_name, "public_key" : public_key}}
             new_key = self._call_api(service="nova", api="/os-keypairs", verb="post", data=data).json()
 
+    def assign_floating_ip(self, server_id):
+        """
+        Assign floating IP
+        """
+        #List floating IPs; see if any are unassigned
+        fips = self._call_api(service="nova", api="/os-floating-ips").json()['floating_ips']
+        fip = next((fip for fip in fips if fip['fixed_ip'] == None), None)
+        if fip:
+            fip = fip["ip"]
+        else:
+            #Allocate a floating IP
+            #Get name of floating IP pools
+            resp = self._call_api(service="nova", api="/os-floating-ip-pools").json()
+            fip_pool = resp['floating_ip_pools'][0]['name']
+            resp = self._call_api(service="nova", api="/os-floating-ips", verb="post", data={"pool":fip_pool}).json()
+            fip = resp["floating-ip"]["ip"]
 
+        #Associate IP    
+        api = "/servers/{}/action".format(server_id)
+        data = {"addFloatingIp": {"address": fip}}
+        resp = self._call_api(service="nova", api=api, verb="post", data=data)
 
     def wait_until_built(self, server_id):
         """
@@ -373,7 +393,10 @@ if __name__ == "__main__":
 
     #Create a server
     #server_manager.create_server(name, image, flavor, key_name='', secgroups=['default'])
-    server_manager.create_server("span-vm-1", "Ubuntu1404-64", "m1.small", key_name='key_spandan', secgroups=['default', 'spandantb'])
+    
+    server_id = server_manager.create_server("span-vm-1", "Ubuntu1404-64", "m1.small", key_name='key_spandan', secgroups=['default', 'spandantb'])
+    server_manager.wait_until_built(server_id)
+    server_manager.assign_floating_ip(server_id)
 
     #List networks
     #print_resp(server_manager._call_api(service="nova", api="/os-networks"))
