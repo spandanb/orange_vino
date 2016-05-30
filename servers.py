@@ -296,7 +296,6 @@ class ServerManager(object):
         #List floating IPs; see if any are unassigned
         fips = self._call_api(service="nova", api="/os-floating-ips").json()['floating_ips']
         fip = next((fip for fip in fips if fip['fixed_ip'] == None), None)
-        pdb.set_trace()
         if fip:
             fip = fip["ip"]
         else:
