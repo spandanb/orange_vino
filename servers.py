@@ -296,6 +296,7 @@ class ServerManager(object):
         #List floating IPs; see if any are unassigned
         fips = self._call_api(service="nova", api="/os-floating-ips").json()['floating_ips']
         fip = next((fip for fip in fips if fip['fixed_ip'] == None), None)
+        pdb.set_trace()
         if fip:
             fip = fip["ip"]
         else:
@@ -304,12 +305,13 @@ class ServerManager(object):
             resp = self._call_api(service="nova", api="/os-floating-ip-pools").json()
             fip_pool = resp['floating_ip_pools'][0]['name']
             resp = self._call_api(service="nova", api="/os-floating-ips", verb="post", data={"pool":fip_pool}).json()
-            fip = resp["floating-ip"]["ip"]
+            fip = resp["floating_ip"]["ip"]
 
         #Associate IP    
         api = "/servers/{}/action".format(server_id)
         data = {"addFloatingIp": {"address": fip}}
-        resp = self._call_api(service="nova", api=api, verb="post", data=data)
+        self._call_api(service="nova", api=api, verb="post", data=data)
+        return fip
 
     def wait_until_built(self, server_id):
         """
