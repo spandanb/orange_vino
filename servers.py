@@ -2,12 +2,13 @@ from auth import Auth
 import requests
 import pdb
 import json
-from utils import is_prefix, is_uuid, SleepFSM
+from utils import is_prefix, is_uuid, SleepFSM, create_and_raise
 import consts
 import os
 import pprint
 import paramiko
 from socket import error as socket_error
+from itertools import chain
 
 #TODO:remove all region_name in each method
 #instead when changing region call `change_params`
@@ -289,6 +290,108 @@ class ServerManager(object):
             data = {"keypair": {"name": key_name, "public_key" : public_key}}
             new_key = self._call_api(service="nova", api="/os-keypairs", verb="post", data=data).json()
 
+    def _uncombine_range(self, rule):
+        """
+        Retuns N objects, one for each unique range 
+        in a secgroup rules. 
+        """
+        return map(lambda rng: {"protocol": rule["protocol"], 
+                                "to"      : rule["to"], 
+                                "from"    : rule["from"], 
+                                "allowed" : rng }, rule["allowed"])
+
+    def _rules_match(self, rules, existing):
+        """
+        Compare rules
+        Does an exact match, i.e. rules and existing must be set equivalent.
+        """
+        def user_format(rule):
+            "Turns rule in OpenStack format into user format"
+            return {"protocol": rule["ip_protocol"], 
+                    "to"      : rule["to_port"], 
+                    "from"    : rule["from_port"], 
+                    "allowed" : rule["ip_range"]["cidr"] }
+        
+
+        
+        #Now each rule in `rules` only has one ip range
+        rules = list(chain.from_iterable(map(self._uncombine_range, rules)))
+        #Sort rules by 'protocol' attr, then 'to' attr
+        rules.sort(key=lambda rule: (rule["protocol"], rule["to"]))
+        existing.sort(key=lambda rule: (rule["ip_protocol"], rule["to_port"]))
+        return rules == map(user_format, existing)
+
+    def create_secgroup(self, name, rules, description=" "):
+        """
+        Creates a secgroup and adds the rules. If the secgroup 
+        exits and the rules don't match, raises and exception.
+
+        rules should be in the format:
+        rules = {'ingress': [
+                              {'protocol': 'tcp', 'from': 22, 'to':22, 'allowed': ['0.0.0.0/0']  }
+                            ], 
+                 'egress': []
+                 }
+
+        """
+        
+        resp = server_manager._call_api(service="nova", api="/os-security-groups").json()
+        #See if a matching rule exists
+        group = next((group for group in resp['security_groups'] if group['name'] == name), None)
+        if group:
+            if not self._rules_match(rules, group['rules']):
+                create_and_raise("SecurityRuleMismatchException", 
+                                 "Security group with name {} exists with different rules".format(name))
+            else:
+                return group["id"]
+        else:
+            #create group
+            data = {"security_group":{"name": name, "description": description}}
+            resp = server_manager._call_api(service="nova", api="/os-security-groups", verb="post", data=data).json()
+            group_id = resp["security_group"]["id"]
+
+            #Now add the rules
+            for rule in rules:
+                for subrule in self._uncombine_range(rule):
+                    data = {
+                               "security_group_rule": {
+                                   "from_port"      : subrule["from"],
+                                   "to_port"        : subrule["to"],
+                                   "ip_protocol"    : subrule["protocol"],
+                                   "cidr"           : subrule["allowed"], 
+                                   "parent_group_id": group_id
+                                }
+                            }
+                            
+                    resp = server_manager._call_api(service="nova", api="/os-security-group-rules", verb="post", data=data).json()
+
+
+    def get_secgroup(self, name, get_id=False):
+        """
+        Returns secgroup object with matching name. 
+        If does not exist, returns None
+
+        Arguments:-
+            name: name of group to fetch
+            get_id: if True only return id, else return the whole group obj
+        """
+        resp = server_manager._call_api(service="nova", api="/os-security-groups").json()
+        group = next((group for group in resp['security_groups'] if group['name'] == name), None)
+        
+        if group and get_id:
+            return group["id"]
+        else:
+            return group
+
+    def delete_secgroup(self, group_name="", group_id=""):
+        if not group_id:
+            group_id = get_secgroup(group_name, get_id=True)
+
+        api = "/os-security-groups/{}".format(group_id)
+        resp = server_manager._call_api(service="nova", api=api, verb="delete")
+        return resp
+            
+
     def assign_floating_ip(self, server_id):
         """
         Assign floating IP
@@ -360,6 +463,8 @@ class ServerManager(object):
 
         return ipaddr
 
+
+
 def print_resp(resp):
     """
     prints the response object
@@ -395,10 +500,15 @@ if __name__ == "__main__":
     #Create a server
     #server_manager.create_server(name, image, flavor, key_name='', secgroups=['default'])
     
-    server_id = server_manager.create_server("span-vm-1", "Ubuntu1404-64", "m1.small", key_name='key_spandan', secgroups=['default', 'spandantb'])
-    server_manager.wait_until_built(server_id)
-    server_manager.assign_floating_ip(server_id)
+    #server_id = server_manager.create_server("span-vm-1", "Ubuntu1404-64", "m1.small", key_name='key_spandan', secgroups=['default', 'spandantb'])
+    #server_manager.wait_until_built(server_id)
+    #server_manager.assign_floating_ip(server_id)
 
-    #List networks
-    #print_resp(server_manager._call_api(service="nova", api="/os-networks"))
+    #List secgroups 
+    rules = [{"to": 22, "from": 22, "protocol":"tcp", "allowed":["10.0.0.0/8", "192.168.0.0/16"]}]
+    gid = server_manager.get_secgroup("foofoo", get_id=True) 
+    server_manager.delete_secgroup(group_id=gid)
+    gid = server_manager.create_secgroup("foofoo", rules, description="foobar")
+
+    
 
