@@ -178,8 +178,7 @@ class ServerManager(object):
 
 
     def create_server(self, name, image, flavor, region_name=None,
-            key_name="", secgroups=[], secgroup_rules=[],
-            user_data="", network=""):
+            key_name="", secgroups=[], user_data="", network=""):
         """
         Create a single server
         Either flavor or flavor_id should be specified
@@ -312,8 +311,8 @@ class ServerManager(object):
                     "from"    : rule["from_port"], 
                     "allowed" : rule["ip_range"]["cidr"] }
         
-
-        
+        #NOTE: nova-network only supports ingress rules
+        rules = rules["ingress"]
         #Now each rule in `rules` only has one ip range
         rules = list(chain.from_iterable(map(self._uncombine_range, rules)))
         #Sort rules by 'protocol' attr, then 'to' attr
@@ -332,10 +331,10 @@ class ServerManager(object):
                             ], 
                  'egress': []
                  }
-
+        NOTE: nova-network only supports ingress rules; we will ignore any egress rules
         """
         
-        resp = server_manager._call_api(service="nova", api="/os-security-groups").json()
+        resp = self._call_api(service="nova", api="/os-security-groups").json()
         #See if a matching rule exists
         group = next((group for group in resp['security_groups'] if group['name'] == name), None)
         if group:
@@ -347,11 +346,11 @@ class ServerManager(object):
         else:
             #create group
             data = {"security_group":{"name": name, "description": description}}
-            resp = server_manager._call_api(service="nova", api="/os-security-groups", verb="post", data=data).json()
+            resp = self._call_api(service="nova", api="/os-security-groups", verb="post", data=data).json()
             group_id = resp["security_group"]["id"]
 
             #Now add the rules
-            for rule in rules:
+            for rule in rules['ingress']:
                 for subrule in self._uncombine_range(rule):
                     data = {
                                "security_group_rule": {
@@ -363,7 +362,7 @@ class ServerManager(object):
                                 }
                             }
                             
-                    resp = server_manager._call_api(service="nova", api="/os-security-group-rules", verb="post", data=data).json()
+                    resp = self._call_api(service="nova", api="/os-security-group-rules", verb="post", data=data).json()
 
 
     def get_secgroup(self, name, get_id=False):
@@ -506,9 +505,9 @@ if __name__ == "__main__":
 
     #List secgroups 
     rules = [{"to": 22, "from": 22, "protocol":"tcp", "allowed":["10.0.0.0/8", "192.168.0.0/16"]}]
-    gid = server_manager.get_secgroup("foofoo", get_id=True) 
-    server_manager.delete_secgroup(group_id=gid)
-    gid = server_manager.create_secgroup("foofoo", rules, description="foobar")
+    print server_manager.get_secgroup("foofoo") 
+    #server_manager.delete_secgroup(group_id=gid)
+    #gid = server_manager.create_secgroup("foofoo", rules, description="foobar")
 
     
 
