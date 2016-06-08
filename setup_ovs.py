@@ -2,7 +2,7 @@ from jinja2 import Template
 import sys
 from orc import Orc
 import config
-import utils as ut
+import utils.vino_utils as ut
 from ansible_wrapper import ansible_wrapper
 import pdb 
 """

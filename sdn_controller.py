@@ -8,7 +8,7 @@ import cPickle as pickle
 import os
 from orc import Orc
 import config
-import utils as ut
+import utils.vino_utils as ut
 
 def get_rules(topology, nodes, overlay=True):
     """

@@ -6,7 +6,7 @@ import time
 import sys
 import paramiko
 from socket import error as socket_error
-from utils import extract_ip, SleepFSM
+from utils.vino_utils import extract_ip, SleepFSM
 #NOTE: Currently only single region deployment/ deletion 
 #is supported; 
 

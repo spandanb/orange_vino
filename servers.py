@@ -1,10 +1,9 @@
 from auth import Auth
 import requests
-import pdb
 import json
-from utils import is_prefix, is_uuid, SleepFSM, create_and_raise
+from utils.utils import is_prefix, is_uuid, SleepFSM, create_and_raise
 import consts
-import os
+import os, pdb
 import pprint
 import paramiko
 from socket import error as socket_error
@@ -12,6 +11,16 @@ from itertools import chain
 
 #TODO:remove all region_name in each method
 #instead when changing region call `change_params`
+
+def get_savi_client():
+    """
+    Returns clients for SAVI
+    """
+    server_manager = ServerManager(os.environ["OS_USERNAME"],
+                                   os.environ["OS_PASSWORD"],
+                                   os.environ["OS_REGION_NAME"],
+                                   os.environ["OS_TENANT_NAME"])
+    return server_manager
 
 class ServerManager(object):
     """
@@ -462,23 +471,34 @@ class ServerManager(object):
 
         return ipaddr
 
-
-
-def print_resp(resp):
-    """
-    prints the response object
-    """
-
-    #The print function to use
-    prnt = pprint.pprint
-
-    if hasattr(resp, 'json'):
-        prnt(resp.json())
-    else:
-        prnt(resp)
+    def sync_savi_key(self, keyname, clobber=False):
+        """
+        Synchronizes local RSA key with SAVI with `keyname`.
+        Similar to sync_aws_key.
+        Arguments:-
+            keyname- the name of the key 
+            server_manager- the AWS Client object
+            clobber- delete existing key on SAVI if name collision
+        """
+        #Check if local SSH key exists; if not create it
+        check_and_create_privkey()
         
-
-
+        keys = self.get_keypairs()
+        for key in keys:
+            if key["keypair"]["name"] == keyname:
+                if key["keypair"]["fingerprint"] == get_pubkey_fingerprint("savi"): 
+                    #Nothing to do here
+                    return 
+                else:
+                    if clobber:
+                        self.remove_keypair(keyname)
+                        self.create_keypair(keyname, get_pubkey())
+                    else:
+                        exc_msg = "local SSH key does not match key '{}' on SAVI server".format(keyname)
+                        create_and_raise("SshKeyException", exc_msg) 
+        else:
+            self.create_keypair(keyname, get_pubkey())
+        
 if __name__ == "__main__":
     server_manager = ServerManager(os.environ["OS_USERNAME"],
                                    os.environ["OS_PASSWORD"],
@@ -505,7 +525,8 @@ if __name__ == "__main__":
 
     #List secgroups 
     rules = [{"to": 22, "from": 22, "protocol":"tcp", "allowed":["10.0.0.0/8", "192.168.0.0/16"]}]
-    print server_manager.get_secgroup("foofoo") 
+    pdb.set_trace()
+    print server_manager.get_secgroup("wordpress-vino") 
     #server_manager.delete_secgroup(group_id=gid)
     #gid = server_manager.create_secgroup("foofoo", rules, description="foobar")
 

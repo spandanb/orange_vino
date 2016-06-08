@@ -7,7 +7,7 @@ import sys
 import pprint
 from servers import ServerManager
 import os
-import utils as ut
+import utils.vino_utils as ut
 
 #Derived from: http://chase-seibert.github.io/blog/2014/03/21/python-multilevel-argparse.html
 #This approach doesn't require the subparser name to be specified

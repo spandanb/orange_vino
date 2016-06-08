@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 
 import argparse
-import utils as ut
+import utils.vino_utils as ut
 from orc import Orc
 import pdb
 
