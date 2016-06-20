@@ -2,6 +2,7 @@ from auth import Auth
 import requests
 import json
 from utils.utils import is_prefix, is_uuid, SleepFSM, create_and_raise
+from utils import keys 
 import consts
 import os, pdb
 import pprint
@@ -481,12 +482,12 @@ class ServerManager(object):
             clobber- delete existing key on SAVI if name collision
         """
         #Check if local SSH key exists; if not create it
-        check_and_create_privkey()
+        keys.check_and_create_privkey()
         
-        keys = self.get_keypairs()
-        for key in keys:
+        keypairs = self.get_keypairs()
+        for key in keypairs:
             if key["keypair"]["name"] == keyname:
-                if key["keypair"]["fingerprint"] == get_pubkey_fingerprint("savi"): 
+                if key["keypair"]["fingerprint"] == keys.get_pubkey_fingerprint("savi"): 
                     #Nothing to do here
                     return 
                 else:
