@@ -465,6 +465,7 @@ class ServerManager(object):
             try:
                 print "Trying ssh {}@{}".format(username, ipaddr)
                 sshClient.connect(ipaddr, username=username)
+                print "Successfully ssh'ed {}@{}".format(username, ipaddr)
                 break
             except socket_error:
                 print "SSH failed...."
