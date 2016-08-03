@@ -494,12 +494,12 @@ class ServerManager(object):
                 else:
                     if clobber:
                         self.remove_keypair(keyname)
-                        self.create_keypair(keyname, get_pubkey())
+                        self.create_keypair(keyname, keys.get_pubkey())
                     else:
                         exc_msg = "local SSH key does not match key '{}' on SAVI server".format(keyname)
                         create_and_raise("SshKeyException", exc_msg) 
         else:
-            self.create_keypair(keyname, get_pubkey())
+            self.create_keypair(keyname, keys.get_pubkey())
         
 if __name__ == "__main__":
     server_manager = ServerManager(os.environ["OS_USERNAME"],
